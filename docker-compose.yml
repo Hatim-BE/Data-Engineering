@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: pgdb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    networks:
+      - pgnet
+    volumes:
+      - "${POSTGRES_VOLUME}:/var/lib/postgresql/data"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT}:80"
+    networks:
+      - pgnet
+    depends_on:
+      - postgres
+
+# ingest_data:
+#   build: .
+#   container_name: ingest_taxi_data
+#   networks:
+#     - pgnet
+
+networks:
+  pgnet:
+    name: pgnet
+volumes:
+  ny-taxi-volume:
