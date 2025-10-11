@@ -1,0 +1,116 @@
+id: first_ETL
+namespace: data_engineering
+
+inputs:
+  - id: taxi
+    type: SELECT
+    values: ["green", "yellow"]
+    defaults: green
+
+  - id: year
+    type: SELECT
+    values: ["2019", "2020"]
+    defaults: "2019"
+
+  - id: month
+    type: SELECT
+    values: ["01", "02", "03"]
+    defaults: "01"
+
+variables:
+  file: "{{inputs.taxi}}_tripdata_{{inputs.year}}-{{inputs.month}}.csv"
+  table: "public.{{inputs.taxi}}_tripdata"
+  data: "{{outputs.extract.outputFiles[inputs.taxi ~ '_tripdata_' ~ inputs.year ~ '-' ~ inputs.month ~ '.csv']}}"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{render(vars.file)}}"
+      taxi: "{{inputs.taxi}}"
+
+  - id: extract
+    type: io.kestra.plugin.scripts.shell.Commands
+    outputFiles:
+      - "*.csv"
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    commands:
+      - wget -qO- https://github.com/DataTalksClub/nyc-tlc-data/releases/download/{{inputs.taxi}}/{{render(vars.file)}}.gz | gunzip > {{render(vars.file)}}
+    
+  - id: if_green_taxi
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.taxi == 'green'}}"
+    then:
+      - id: green_create_table
+        type: io.kestra.plugin.jdbc.postgresql.Query
+        url: jdbc:postgresql://host.docker.internal:5432/kestra_db
+        sql: |
+          CREATE TABLE IF NOT EXISTS {{render(vars.table)}} (
+              VendorID               text,
+              lpep_pickup_datetime   timestamp,
+              lpep_dropoff_datetime  timestamp,
+              store_and_fwd_flag     text,
+              RatecodeID             text,
+              PULocationID           text,
+              DOLocationID           text,
+              passenger_count        integer,
+              trip_distance          double precision,
+              fare_amount            double precision,
+              extra                  double precision,
+              mta_tax                double precision,
+              tip_amount             double precision,
+              tolls_amount           double precision,
+              ehail_fee              double precision,
+              improvement_surcharge  double precision,
+              total_amount           double precision,
+              payment_type           integer,
+              trip_type              integer,
+              congestion_surcharge   double precision
+          );
+
+
+  - id: if_yellow_taxi
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{inputs.taxi == 'yellow'}}"
+    then:
+      - id: yellow_create_table
+        type: io.kestra.plugin.jdbc.postgresql.Query
+        url: jdbc:postgresql://host.docker.internal:5432/kestra_db
+        sql: |
+          CREATE TABLE IF NOT EXISTS {{render(vars.table)}} (
+              VendorID               text,
+              tpep_pickup_datetime   timestamp,
+              tpep_dropoff_datetime  timestamp,
+              passenger_count        integer,
+              trip_distance          double precision,
+              RatecodeID             text,
+              store_and_fwd_flag     text,
+              PULocationID           text,
+              DOLocationID           text,
+              payment_type           integer,
+              fare_amount            double precision,
+              extra                  double precision,
+              mta_tax                double precision,
+              tip_amount             double precision,
+              tolls_amount           double precision,
+              improvement_surcharge  double precision,
+              total_amount           double precision,
+              congestion_surcharge   double precision
+          );
+
+  - id: load
+    type: io.kestra.plugin.jdbc.postgresql.CopyIn
+    url: jdbc:postgresql://host.docker.internal:5432/kestra_db
+    table: "{{render(vars.table)}}"
+    from: "{{render(vars.data)}}"
+    format: CSV
+    header: true
+    delimiter: ","
+
+pluginDefaults:
+  - type: io.kestra.plugin.jdbc.postgresql
+    values:
+      username: root
+      password: root
+
