@@ -105,13 +105,13 @@ tasks:
         sql: |
           TRUNCATE TABLE {{render(vars.staging_table)}};
 
-      - id: check_if_loaded
+      - id: check_if_loaded_green
         type: io.kestra.plugin.jdbc.postgresql.Query
         sql: |
           SELECT count(*)  AS already_loaded from {{render(vars.table)}} WHERE filename = '{{render(vars.file)}}';
         fetchType: FETCH_ONE
 
-      - id: if_file_was_not_processed
+      - id: if_file_was_not_processed_green
         type: io.kestra.plugin.core.flow.If
         condition: "{{ outputs.check_if_loaded['row']['already_loaded'] == 0"
         then:
