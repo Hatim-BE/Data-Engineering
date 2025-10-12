@@ -225,14 +225,24 @@ tasks:
         sql: |
           TRUNCATE TABLE {{render(vars.staging_table)}};
 
-      - id: yellow_copy_in_to_staging_table
-        type: io.kestra.plugin.jdbc.postgresql.CopyIn
-        
-        format: CSV
-        from: "{{render(vars.data)}}"
-        table: "{{render(vars.staging_table)}}"
-        header: true
-        columns: [VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount,congestion_surcharge]
+      - id: check_if_loaded_yellow
+        type: io.kestra.plugin.jdbc.postgresql.Query
+        sql: |
+          SELECT count(*)  AS already_loaded from {{render(vars.table)}} WHERE filename = '{{render(vars.file)}}';
+        fetchType: FETCH_ONE
+
+      - id: if_file_was_not_processed_yellow
+        type: io.kestra.plugin.core.flow.If
+        condition: "{{ outputs.check_if_loaded_yellow['row']['already_loaded'] == 0}}"
+        then:        
+          - id: yellow_copy_in_to_staging_table
+            type: io.kestra.plugin.jdbc.postgresql.CopyIn
+            
+            format: CSV
+            from: "{{render(vars.data)}}"
+            table: "{{render(vars.staging_table)}}"
+            header: true
+            columns: [VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount,congestion_surcharge]
 
       - id: yellow_add_unique_id_and_filename
         type: io.kestra.plugin.jdbc.postgresql.Query
