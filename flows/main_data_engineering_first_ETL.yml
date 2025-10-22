@@ -290,16 +290,3 @@ pluginDefaults:
       url: jdbc:postgresql://host.docker.internal:5432/kestra_db
       username: root
       password: root
-
-triggers:
-  - id: green_schedule
-    type: io.kestra.plugin.core.trigger.Schedule
-    cron: "30 9 1 * *"
-    inputs:
-      taxi: green
-
-  - id: yellow_schedule
-    type: io.kestra.plugin.core.trigger.Schedule
-    cron: "30 10 1 * *"
-    inputs:
-      taxi: yellow
