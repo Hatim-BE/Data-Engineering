@@ -14,7 +14,7 @@ inputs:
 
   - id: month
     type: SELECT
-    values: ["01", "02", "03"]
+    values: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
     defaults: "01"
 
 variables:
@@ -22,6 +22,7 @@ variables:
   table: "public.{{inputs.taxi}}_tripdata"
   staging_table: "public.{{inputs.taxi}}_tripdata_staging"
   data: "{{outputs.extract.outputFiles[inputs.taxi ~ '_tripdata_' ~ inputs.year ~ '-' ~ inputs.month ~ '.csv']}}"
+  row_count: 0
 
 tasks:
   - id: set_label
@@ -105,15 +106,35 @@ tasks:
         sql: |
           TRUNCATE TABLE {{render(vars.staging_table)}};
 
+      - id: count_csv_rows
+        type: io.kestra.plugin.scripts.shell.Commands
+        inputFiles:
+          data.csv: "{{ render(vars.data) }}"
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        commands:
+          - |
+            # Count lines (excluding header)
+            row_count=$(($(wc -l < data.csv) - 1))
+            # Emit JSON so Kestra captures it
+            echo $row_count >> csv_count.txt
+        outputFiles:
+          - "csv_count.txt"
+
+      - id: set_row_count_var
+        type: io.kestra.plugin.core.execution.SetVariables
+        variables:
+          row_count: "{{ read(outputs.count_csv_rows.outputFiles['csv_count.txt']) | trim }}"
+
       - id: check_if_loaded_green
         type: io.kestra.plugin.jdbc.postgresql.Query
         sql: |
-          SELECT count(*)  AS already_loaded from {{render(vars.table)}} WHERE filename = '{{render(vars.file)}}';
+          SELECT count(*)::text  AS already_loaded from {{render(vars.table)}} WHERE filename = '{{render(vars.file)}}';
         fetchType: FETCH_ONE
 
       - id: if_file_was_not_processed_green
         type: io.kestra.plugin.core.flow.If
-        condition: "{{ outputs.check_if_loaded_green['row']['already_loaded'] == 0}}"
+        condition: "{{ outputs.check_if_loaded_green['row']['already_loaded'] != render(vars.row_count)}}"
         then:
           - id: green_copy_in_to_staging_table
             type: io.kestra.plugin.jdbc.postgresql.CopyIn
